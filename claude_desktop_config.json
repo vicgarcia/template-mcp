@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "templates": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "/Users/yourname/templates:/templates",
+        "template-mcp"
+      ]
+    }
+  }
+}

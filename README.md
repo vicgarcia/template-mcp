@@ -1,44 +1,67 @@
 # Template MCP Server
 
-A lightweight MCP (Model Context Protocol) server that provides structured markdown templates with usage instructions for AI agents. Each template includes step-by-step guidance and curly-brace placeholders (e.g., `{total revenue for quarter}`).
+A dynamic MCP (Model Context Protocol) server for Claude Desktop that loads markdown templates from YAML files. Drop a YAML file in a folder, restart Claude Desktop, and your template becomes available as an MCP tool.
 
-## Key Features
+## Features
 
-Each tool returns:
-- **`instructions`**: Step-by-step guide for the AI agent on how to use the template
-- **`template`**: Markdown string with placeholder fields
+- **Zero-Code Template Management**: Add/edit templates without touching Python code
+- **Dynamic Discovery**: YAML files automatically loaded at startup
+- **Preserved Formatting**: Multi-line templates with exact whitespace preservation
+- **Agent Guidance**: Each template includes step-by-step instructions for Claude
+- **Docker-First**: Designed for Claude Desktop with Docker deployment
 
-This dual approach allows AI agents to understand not just the output format, but the entire workflow for generating documents.
+## Quick Start
 
-## Installation
-
-### Local Development
-
-```bash
-# Clone the repository
-git clone https://github.com/[username]/template-mcp
-cd template-mcp
-
-# Install in editable mode
-pip install -e .
-
-# Run the server
-template-mcp
-```
-
-### Docker
+### 1. Create Template Directory
 
 ```bash
-# Build the image
-docker build -t template-mcp:local .
-
-# Run the server
-docker run -i --rm template-mcp:local
+mkdir -p ~/.template-mcp/templates
 ```
 
-## Claude Desktop Integration
+### 2. Add Example Templates
 
-Add to your Claude Desktop MCP settings (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+Three templates are included in this repo. Copy them to your template directory:
+
+```bash
+cp ~/.template-mcp/templates/*.yml ~/.template-mcp/templates/
+```
+
+Or create your own. Example `~/.template-mcp/templates/status_update.yml`:
+
+```yaml
+description: Return instructions and template for generating status updates
+
+instructions: |
+  Generate a status update by following these steps:
+
+  1. Identify the project name from context
+  2. Determine current status (on track, at risk, blocked)
+  3. Summarize progress made since last update
+  4. List upcoming tasks and next steps
+  5. Populate the template with all information
+  6. Return the completed markdown document
+
+template: |
+  # Status Update: {project name}
+
+  **Status**: {current status}
+
+  ## Progress
+  {progress details}
+
+  ## Next Steps
+  {upcoming tasks}
+```
+
+### 3. Build Docker Image
+
+```bash
+docker build -t template-mcp .
+```
+
+### 4. Configure Claude Desktop
+
+Add to your Claude Desktop MCP settings (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
 ```json
 {
@@ -46,126 +69,153 @@ Add to your Claude Desktop MCP settings (`~/Library/Application Support/Claude/c
     "templates": {
       "command": "docker",
       "args": [
-        "run",
-        "-i",
-        "--rm",
-        "template-mcp:local"
+        "run", "-i", "--rm",
+        "-v", "/Users/yourname/.template-mcp/templates:/templates",
+        "template-mcp"
       ]
     }
   }
 }
 ```
 
-Or for local installation:
+**Important**: Replace `/Users/yourname/` with your actual home directory path.
 
-```json
-{
-  "mcpServers": {
-    "templates": {
-      "command": "template-mcp"
-    }
-  }
-}
+### 5. Restart Claude Desktop
+
+Your templates are now available as MCP tools!
+
+## YAML Template Format
+
+Each template file has three required fields:
+
+```yaml
+description: Brief description (becomes tool docstring)
+
+instructions: |
+  Multi-line step-by-step guide for Claude.
+  Use the pipe (|) to preserve formatting.
+
+template: |
+  # Markdown Template
+
+  {use curly braces for placeholders}
+  All whitespace is preserved exactly.
 ```
 
-## Available Templates
+## Included Templates
 
-### get_weekly_linear_project_update_template
-Returns instructions and template for generating weekly project updates with revenue metrics.
+Three example templates are included:
 
-**Example Usage**: "Generate a weekly update for our project"
+- **weekly_linear_project_update.yml** - Weekly project updates with Linear integration
+- **quarterly_business_review.yml** - Quarterly business reviews with metrics
+- **meeting_notes.yml** - Structured meeting notes with action items
 
-## Usage Example
+These are created in `~/.template-mcp/templates/` when you first set up the server.
 
-When Claude Desktop is configured with this MCP server:
+## Adding Templates
 
-**User**: "Generate a weekly project update"
+**Zero code required**:
 
-**Claude**:
-1. Calls `get_weekly_linear_project_update_template` tool
-2. Receives `instructions` (e.g., "Use tools to get the total revenue...")
-3. Receives `template` (markdown with `{total revenue for month}` placeholder)
-4. Follows instructions to gather data
-5. Populates template with gathered information
-6. Returns formatted markdown report
+1. Create a `.yml` or `.yaml` file in `~/.template-mcp/templates/`
+2. Add the three required fields: `description`, `instructions`, `template`
+3. Restart Claude Desktop
 
-The `instructions` field guides Claude through the entire process, making templates more than passive forms—they become **guided workflows**.
+The filename becomes the tool name:
+- `meeting_notes.yml` → `get_meeting_notes_template()` tool
+- `status_update.yml` → `get_status_update_template()` tool
 
-## Adding New Templates
+## How It Works
 
-### Step 1: Create Template Content File
+When you ask Claude to "generate a weekly update":
 
-Create `src/template_mcp/template_content/status_update.py`:
+1. Claude calls `get_weekly_linear_project_update_template` tool
+2. Receives `instructions` with step-by-step guidance
+3. Receives `template` with `{placeholder}` fields
+4. Follows instructions to gather data (using other MCP tools, APIs, etc.)
+5. Populates the template
+6. Returns formatted markdown
 
-```python
-TEMPLATE = '''# Status Update: {project name}
+The `instructions` field turns templates into **guided workflows**, not just passive forms.
 
-**Status**: {current status}
+## Template Writing Guidelines
 
-## Progress
+### description
+- One-line summary
+- Format: "Return instructions and template for generating [document type]"
 
-{progress details}
+### instructions
+- Always use `|` for multi-line strings
+- Start with "Generate a [type] by following these steps:"
+- Use numbered lists
+- Be specific about data gathering
+- End with "Populate the template and return the completed markdown document"
 
-## Next Steps
+### template
+- Always use `|` for multi-line strings
+- Use markdown formatting
+- Use natural language placeholders: `{total revenue for quarter}` not `{rev_q1}`
+- All whitespace preserved exactly
 
-{upcoming tasks}
-'''
+## Development
 
-INSTRUCTIONS = '''Generate a status update by following these steps:
+### Local Development (Without Docker)
 
-1. Identify the project name from context
-2. Determine the current status (on track, at risk, blocked)
-3. Summarize progress made since last update
-4. List upcoming tasks and next steps
-5. Populate the template with all information
-6. Return the completed markdown status update
-'''
+```bash
+# Clone and install
+git clone https://github.com/[username]/template-mcp
+cd template-mcp
+pip install -e .
+
+# Create local templates (for testing)
+mkdir -p /tmp/templates
+# Add .yml files...
+
+# Run with custom path
+TEMPLATE_MCP_PATH=/tmp/templates template-mcp
 ```
 
-### Step 2: Add Tool Function
+### Building Docker Image
 
-Add to `src/template_mcp/server.py`:
-
-```python
-import template_mcp.template_content.status_update as status_update
-
-@mcp.tool
-def get_status_update_template() -> Dict[str, Any]:
-    ''' Return instructions and template for generating status updates '''
-    return {
-        'instructions': status_update.INSTRUCTIONS,
-        'template': status_update.TEMPLATE,
-    }
+```bash
+docker build -t template-mcp .
 ```
 
-That's it! No configuration files, no registration, no complex setup.
+### Testing Docker Image
+
+```bash
+# Create test templates
+mkdir -p /tmp/test-templates
+echo 'description: Test
+instructions: |
+  Test instructions
+template: |
+  # Test {name}' > /tmp/test-templates/test.yml
+
+# Run container
+docker run -i --rm -v /tmp/test-templates:/templates template-mcp
+```
 
 ## Architecture
 
-The server uses a simple two-layer architecture:
+The server uses three main components:
 
-1. **Template Content Layer** (`template_content/*.py`): Pure data files with `INSTRUCTIONS` and `TEMPLATE` constants
-2. **Server Layer** (`server.py`): FastMCP tool functions that return the instructions and template
+- **loader.py**: Discovers and loads YAML templates from `/templates`
+- **server.py**: Dynamically registers tools with FastMCP at startup
+- **Docker container**: Mounts host directory to `/templates` for template access
 
-This separation allows you to:
-- Edit templates without touching Python logic
-- See all available tools in one file (`server.py`)
-- Keep template content simple and maintainable
+### How It Works
+
+1. Docker container starts with `/templates` mount point
+2. Server reads `TEMPLATE_MCP_PATH` (defaults to `/templates`)
+3. `TemplateLoader` scans for `.yml` and `.yaml` files
+4. Each valid YAML file becomes an MCP tool
+5. Server communicates with Claude Desktop via STDIO
 
 ## Requirements
 
-- Python >=3.12
-- FastMCP >=0.9.0
-
-## Design Philosophy
-
-**Ultra-minimal**: No external dependencies beyond FastMCP, no configuration, no state management
-
-**Separation of concerns**: Content (templates) is separate from code (tools)
-
-**Agent-friendly**: Instructions guide AI agents through complex workflows
-
-**Zero magic**: Explicit imports, no auto-discovery, predictable behavior
+- Docker
+- Claude Desktop
+- Template directory with `.yml` files
 
 ## License
 

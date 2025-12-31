@@ -5,7 +5,8 @@ description = "MCP server for structured markdown templates"
 requires-python = ">=3.12"
 dependencies = [
     "fastmcp>=0.9.0",
-    "pyyaml>=6.0"
+    "pyyaml>=6.0",
+    "pydantic>=2.0"
 ]
 
 [project.scripts]

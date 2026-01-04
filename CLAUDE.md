@@ -16,7 +16,7 @@ Template MCP is a lightweight, dynamic MCP (Model Context Protocol) server for C
 - **Python Version**: >=3.12
 - **Transport**: STDIO (for Claude Desktop via Docker)
 - **Package Manager**: pip with pyproject.toml
-- **Dependencies**: FastMCP, PyYAML
+- **Dependencies**: FastMCP, PyYAML, Pydantic
 - **Deployment**: Docker
 
 ## Development Commands
@@ -50,10 +50,11 @@ TEMPLATE_MCP_PATH=/tmp/templates template-mcp
 - supports multi-line strings with preserved whitespace
 
 **Server Components**:
+- `models.py`: Pydantic model for template data validation
 - `loader.py`: discovers and validates YAML templates from filesystem
-- `server.py`: dynamically registers tools with FastMCP at runtime
+- `server.py`: instantiates FastMCP server and dynamically registers tools in `run()` method
 - `__init__.py`: minimal (just a comment)
-- no hardcoded templates, no imports needed
+- no hardcoded templates, all configuration via YAML files
 
 ### YAML Template Schema
 
@@ -79,34 +80,39 @@ template: |
 
 ### Example Template File
 
-`~/.template-mcp/templates/weekly_status.yml`:
+`~/.template-mcp/templates/weekly_linear_update.yml`:
 ```yaml
-description: Return instructions and template for generating weekly status reports
+description: Return instructions and template for generating weekly project updates from Linear
 
 instructions: |
-  Generate a weekly status report by following these steps:
+  Generate a weekly project update by following these steps:
 
-  1. Gather completed tasks from project management tools
-  2. List current in-progress work items
-  3. Identify any blockers or risks
-  4. Calculate key metrics for the week
-  5. Populate the template with all information
-  6. Return the completed markdown document
+  1. Use the Linear MCP server to find the project by name or ID
+  2. Query completed issues from the past week using Linear filters (status: Done, updated: last 7 days)
+  3. Query in-progress issues using Linear filters (status: In Progress, Started)
+  4. Identify blocked or at-risk issues from Linear
+  5. Calculate velocity and completion metrics
+  6. Populate the template with all gathered data
+  7. Return the completed markdown document
 
 template: |
-  # Weekly Status - {week ending date}
+  # Weekly Update: {project name} - {week ending date}
 
-  ## Completed
-  {bulleted list of completed items}
+  ## Summary
+  {one paragraph overview}
+
+  ## Completed This Week
+  {bulleted list with Linear issue links}
 
   ## In Progress
-  {current work items with owners}
+  {current work with assignees}
 
-  ## Blockers
-  {any issues blocking progress}
+  ## Blockers & Risks
+  {blocked or at-risk issues}
 
   ## Metrics
-  - Tasks Completed: {number}
+  - Issues Completed: {number}
+  - Velocity: {points or count}
   - On Track: {yes/no}
 ```
 
@@ -133,9 +139,11 @@ The filename becomes the tool name. For example:
 - always use `|` for multi-line strings to preserve formatting
 - start with "Generate a [type] by following these steps:"
 - use numbered lists for step-by-step workflows
-- be specific about what data to gather
-- mention if the agent should use specific tools or APIs
+- **be explicit about MCP tool usage**: "Use the Linear MCP to...", "Use the GitHub MCP to..."
+- specify exact filters, parameters, and query criteria for MCP tools
+- be specific about data transformations and calculations
 - end with "Populate the template and return the completed markdown document"
+- **treat instructions as a workflow orchestration** - chain multiple MCP tool calls together
 
 ### Template Field
 - always use `|` for multi-line strings to preserve formatting
@@ -183,23 +191,22 @@ EOF
 ```
 src/template_mcp/
 ├── __init__.py              # minimal (just a comment)
-├── server.py                # dynamic tool registration + run() entrypoint
-├── loader.py                # YAML template discovery and loading
+├── models.py                # Pydantic Template model
+├── loader.py                # YAML template discovery and validation
+├── server.py                # FastMCP server instantiation + run() entrypoint
 └── template_content/        # (deprecated - kept for reference)
 
 ~/.template-mcp/templates/   # user's template directory (mounted to /templates in Docker)
-├── weekly_linear_project_update.yml
-├── quarterly_business_review.yml
-└── meeting_notes.yml
+└── (user creates their own templates here)
 ```
 
 ## Design Constraints
 
 - **no parameters**: tool functions take no arguments
 - **no state**: server is completely stateless
-- **no validation**: no placeholder checking or schema enforcement
+- **pydantic validation**: template YAML files validated with Pydantic models, required fields enforced
 - **no processing**: no server-side template rendering or substitution
-- **dynamic loading**: templates loaded at startup from filesystem
+- **dynamic loading**: templates loaded at startup from filesystem, server exits if no templates found
 - **environment configuration**: single env var for template path
 - **pure YAML data**: templates contain only strings, no logic
 - **Docker-first**: designed for Docker deployment with volume mounts
@@ -242,7 +249,7 @@ TEMPLATE_MCP_PATH=/tmp/templates template-mcp
 The `pyproject.toml` uses:
 - package name: `template-mcp`
 - CLI entrypoint: `template-mcp` → `template_mcp.server:run`
-- dependencies: `fastmcp>=0.9.0`, `pyyaml>=6.0`
+- dependencies: `fastmcp>=0.9.0`, `pyyaml>=6.0`, `pydantic>=2.0`
 - build backend: Hatchling
 
 ## Claude Desktop Integration
@@ -281,9 +288,10 @@ The container defaults to `/templates` as the template path, so no environment v
 
 **Zero-Code Template Management**: add/edit templates without touching Python code
 **Dynamic Discovery**: new templates automatically available on restart
+**Type Safety**: Pydantic models ensure template data integrity and validation
 **External Configuration**: templates live outside the codebase, easy to share/version
 **Preserved Formatting**: YAML literal blocks preserve all whitespace and line breaks
 **Simple Deployment**: mount template directory in Docker, configure path via env var
-**No Magic**: explicit YAML loading, clear tool registration, straightforward flow
+**Clean Separation**: models, loading, and server logic in separate modules with clear responsibilities
 **Easy Sharing**: share template YAML files across teams without code changes
 **Docker-First**: designed for Claude Desktop with containerized deployment

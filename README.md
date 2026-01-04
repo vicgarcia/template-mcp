@@ -6,6 +6,7 @@ A dynamic MCP (Model Context Protocol) server for Claude Desktop that loads mark
 
 - **Zero-Code Template Management**: Add/edit templates without touching Python code
 - **Dynamic Discovery**: YAML files automatically loaded at startup
+- **Type-Safe Validation**: Pydantic models ensure template data integrity
 - **Preserved Formatting**: Multi-line templates with exact whitespace preservation
 - **Agent Guidance**: Each template includes step-by-step instructions for Claude
 - **Docker-First**: Designed for Claude Desktop with Docker deployment
@@ -18,39 +19,46 @@ A dynamic MCP (Model Context Protocol) server for Claude Desktop that loads mark
 mkdir -p ~/.template-mcp/templates
 ```
 
-### 2. Add Example Templates
+### 2. Create Your First Template
 
-Three templates are included in this repo. Copy them to your template directory:
-
-```bash
-cp ~/.template-mcp/templates/*.yml ~/.template-mcp/templates/
-```
-
-Or create your own. Example `~/.template-mcp/templates/status_update.yml`:
+Create `~/.template-mcp/templates/weekly_update.yml`:
 
 ```yaml
-description: Return instructions and template for generating status updates
+description: Return instructions and template for generating weekly project updates
 
 instructions: |
-  Generate a status update by following these steps:
+  Generate a weekly project update by following these steps:
 
-  1. Identify the project name from context
-  2. Determine current status (on track, at risk, blocked)
-  3. Summarize progress made since last update
-  4. List upcoming tasks and next steps
-  5. Populate the template with all information
-  6. Return the completed markdown document
+  1. Use the Linear MCP to find the project by name or ID
+  2. Use the Linear MCP to query issues completed this week (filter by status and updated date)
+  3. Use the Linear MCP to query issues currently in progress
+  4. Identify any blockers or at-risk issues
+  5. Calculate key metrics (completed vs planned, velocity, etc.)
+  6. Populate the template with all gathered information
+  7. Return the completed markdown document
 
 template: |
-  # Status Update: {project name}
+  # Weekly Update: {project name} - {week ending date}
 
-  **Status**: {current status}
+  ## Summary
+  {one paragraph executive summary of the week}
 
-  ## Progress
-  {progress details}
+  ## Completed This Week
+  {bulleted list of completed issues with Linear links}
 
-  ## Next Steps
-  {upcoming tasks}
+  ## In Progress
+  {bulleted list of active issues with assignees}
+
+  ## Blockers & Risks
+  {any issues blocking progress or at risk}
+
+  ## Metrics
+  - Issues Completed: {number}
+  - Issues In Progress: {number}
+  - On Track: {yes/no with brief explanation}
+
+  ## Next Week
+  {planned work and focus areas}
 ```
 
 ### 3. Build Docker Image
@@ -86,7 +94,7 @@ Your templates are now available as MCP tools!
 
 ## YAML Template Format
 
-Each template file has three required fields:
+Each template file has three required fields (validated with Pydantic):
 
 ```yaml
 description: Brief description (becomes tool docstring)
@@ -102,17 +110,9 @@ template: |
   All whitespace is preserved exactly.
 ```
 
-## Included Templates
+**Note**: All three fields are required. If any field is missing or empty, the template will not load and an error will be logged.
 
-Three example templates are included:
-
-- **weekly_linear_project_update.yml** - Weekly project updates with Linear integration
-- **quarterly_business_review.yml** - Quarterly business reviews with metrics
-- **meeting_notes.yml** - Structured meeting notes with action items
-
-These are created in `~/.template-mcp/templates/` when you first set up the server.
-
-## Adding Templates
+## Adding More Templates
 
 **Zero code required**:
 
@@ -121,21 +121,21 @@ These are created in `~/.template-mcp/templates/` when you first set up the serv
 3. Restart Claude Desktop
 
 The filename becomes the tool name:
+- `weekly_update.yml` → `get_weekly_update_template()` tool
 - `meeting_notes.yml` → `get_meeting_notes_template()` tool
-- `status_update.yml` → `get_status_update_template()` tool
 
 ## How It Works
 
 When you ask Claude to "generate a weekly update":
 
-1. Claude calls `get_weekly_linear_project_update_template` tool
+1. Claude calls `get_weekly_update_template` tool
 2. Receives `instructions` with step-by-step guidance
 3. Receives `template` with `{placeholder}` fields
-4. Follows instructions to gather data (using other MCP tools, APIs, etc.)
-5. Populates the template
-6. Returns formatted markdown
+4. Follows instructions to gather data from Linear MCP (or other MCP tools)
+5. Populates the template with real data
+6. Returns formatted markdown document
 
-The `instructions` field turns templates into **guided workflows**, not just passive forms.
+The `instructions` field turns templates into **guided workflows** that can orchestrate multiple MCP tools, not just passive forms.
 
 ## Template Writing Guidelines
 
@@ -146,8 +146,9 @@ The `instructions` field turns templates into **guided workflows**, not just pas
 ### instructions
 - Always use `|` for multi-line strings
 - Start with "Generate a [type] by following these steps:"
-- Use numbered lists
-- Be specific about data gathering
+- Use numbered lists with specific actions
+- Reference MCP tools when applicable (e.g., "Use the Linear MCP to...", "Use the GitHub MCP to...")
+- Be specific about data gathering and filtering
 - End with "Populate the template and return the completed markdown document"
 
 ### template
@@ -197,10 +198,11 @@ docker run -i --rm -v /tmp/test-templates:/templates template-mcp
 
 ## Architecture
 
-The server uses three main components:
+The server uses four main components:
 
-- **loader.py**: Discovers and loads YAML templates from `/templates`
-- **server.py**: Dynamically registers tools with FastMCP at startup
+- **models.py**: Pydantic `Template` model for type-safe validation
+- **loader.py**: Discovers and validates YAML templates from filesystem
+- **server.py**: Instantiates FastMCP and dynamically registers tools in `run()` method
 - **Docker container**: Mounts host directory to `/templates` for template access
 
 ### How It Works
@@ -208,8 +210,10 @@ The server uses three main components:
 1. Docker container starts with `/templates` mount point
 2. Server reads `TEMPLATE_MCP_PATH` (defaults to `/templates`)
 3. `TemplateLoader` scans for `.yml` and `.yaml` files
-4. Each valid YAML file becomes an MCP tool
-5. Server communicates with Claude Desktop via STDIO
+4. Each file is validated against the Pydantic `Template` model
+5. Valid templates become MCP tools dynamically registered with FastMCP
+6. Server exits if no valid templates are found
+7. Server communicates with Claude Desktop via STDIO
 
 ## Requirements
 

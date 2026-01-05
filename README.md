@@ -149,20 +149,20 @@ The server provides utility tools:
 4. Restart Claude Desktop
 
 The filename becomes the tool name:
-- `weekly_update.yml` → `get_weekly_update_template()` tool
-- `meeting_notes.yml` → `get_meeting_notes_template()` tool
-- `standup_workflow.yml` → `get_standup_workflow_template()` tool
+- `weekly_update.yml` → `get_weekly_update_prompt()` tool
+- `meeting_notes.yml` → `get_meeting_notes_prompt()` tool
+- `standup_workflow.yml` → `get_standup_workflow_prompt()` tool
 
 ## How It Works
 
 When you ask Claude to "generate a weekly update":
 
-1. Claude calls `get_weekly_update_template` tool
+1. Claude calls `get_weekly_update_prompt` tool
 2. Receives `instructions` with step-by-step guidance
-3. Receives `template` with `{placeholder}` fields
+3. Receives `template` with `{placeholder}` fields (if provided)
 4. Follows instructions to gather data from Linear MCP (or other MCP tools)
-5. Populates the template with real data
-6. Returns formatted markdown document
+5. Populates the template with real data (if template exists)
+6. Returns formatted markdown document or summary
 
 The `instructions` field turns templates into **guided workflows** that can orchestrate multiple MCP tools, not just passive forms.
 

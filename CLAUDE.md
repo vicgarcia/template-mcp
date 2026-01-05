@@ -147,9 +147,9 @@ The server provides built-in utility tools:
 4. Restart Claude Desktop
 
 The filename becomes the tool name. For example:
-- `meeting_notes.yml` → `get_meeting_notes_template()` tool
-- `quarterly_review.yml` → `get_quarterly_review_template()` tool
-- `standup_workflow.yml` → `get_standup_workflow_template()` tool (instruction-only)
+- `meeting_notes.yml` → `get_meeting_notes_prompt()` tool
+- `quarterly_review.yml` → `get_quarterly_review_prompt()` tool
+- `standup_workflow.yml` → `get_standup_workflow_prompt()` tool (instruction-only)
 
 ## Template Writing Guidelines
 

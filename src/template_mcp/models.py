@@ -17,4 +17,4 @@ class Template(BaseModel):
     @property
     def tool_name(self) -> str:
         ''' generate the MCP tool function name '''
-        return f"get_{self.name}_template"
+        return f"get_{self.name}_prompt"

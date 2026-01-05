@@ -1,5 +1,7 @@
 import os
 from typing import Dict, Any
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from fastmcp import FastMCP
 from .loader import TemplateLoader
 from .models import Template
@@ -11,10 +13,10 @@ logger = logging.getLogger(__name__)
 def _create_tool_function(template: Template):
     ''' factory function to create tool with proper closure '''
     def tool_func() -> Dict[str, Any]:
-        return {
-            'instructions': template.instructions,
-            'template': template.template,
-        }
+        result = {'instructions': template.instructions}
+        if template.template is not None:
+            result['template'] = template.template
+        return result
     tool_func.__name__ = template.tool_name
     tool_func.__doc__ = template.description
     return tool_func

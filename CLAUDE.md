@@ -4,9 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Template MCP is a lightweight, dynamic MCP (Model Context Protocol) server for Claude Desktop that loads markdown templates from YAML files. Templates are automatically discovered and registered as MCP tools at server startup. Each tool returns two values:
-- **`instructions`**: step-by-step guide telling the AI agent how to use the template
-- **`template`**: markdown string with curly-brace placeholders (e.g., `{total revenue for quarter}`)
+Template MCP is a lightweight, dynamic MCP (Model Context Protocol) server for Claude Desktop that loads markdown templates from YAML files. Templates are automatically discovered and registered as MCP tools at server startup. Each tool returns:
+- **`instructions`**: step-by-step guide telling the AI agent how to accomplish a task (required)
+- **`template`**: optional markdown string with curly-brace placeholders (e.g., `{total revenue for quarter}`)
+
+Templates can be **instruction-only** (pure workflow orchestration) or **instruction + template** (workflow with structured output).
 
 **Core Philosophy**: dynamic configuration via YAML files outside the codebase, Docker-first deployment, zero-code template management.
 
@@ -58,7 +60,7 @@ TEMPLATE_MCP_PATH=/tmp/templates template-mcp
 
 ### YAML Template Schema
 
-Each template file must contain three fields:
+Each template file requires two fields and optionally supports a third:
 
 ```yaml
 description: Brief description of what this template generates (becomes tool docstring)
@@ -67,15 +69,28 @@ instructions: |
   Multi-line step-by-step guide for the AI agent.
 
   Use the pipe (|) character to preserve line breaks and formatting.
-  This tells the agent exactly how to use the template.
+  This tells the agent exactly how to accomplish the task.
 
-template: |
+template: |  # OPTIONAL - omit for instruction-only workflows
   # Markdown Template
 
   Use {curly braces} for placeholders.
   {descriptive placeholder names are best}
 
   All whitespace and formatting is preserved.
+```
+
+**Instruction-only example** (no template field):
+```yaml
+description: Orchestrate weekly standup data collection from Linear and Slack
+
+instructions: |
+  Collect standup data by following these steps:
+
+  1. Use the Linear MCP to query issues updated in the last 7 days
+  2. Use the Slack MCP to fetch recent messages from #engineering channel
+  3. Summarize key updates, blockers, and upcoming work
+  4. Return a concise summary in bullet points
 ```
 
 ### Example Template File
@@ -116,17 +131,25 @@ template: |
   - On Track: {yes/no}
 ```
 
+## Built-in Utility Tools
+
+The server provides built-in utility tools:
+
+- **`get_current_date()`**: Returns current datetime, timezone, and formatted timestamp. Useful for templates that need current date/time context.
+
 ## Adding New Templates
 
 **Zero code required**:
 
 1. Create a `.yml` or `.yaml` file in your templates directory
-2. Add `description`, `instructions`, and `template` fields
-3. Restart Claude Desktop
+2. Add required fields: `description` and `instructions`
+3. Optionally add `template` field for structured output
+4. Restart Claude Desktop
 
 The filename becomes the tool name. For example:
 - `meeting_notes.yml` → `get_meeting_notes_template()` tool
 - `quarterly_review.yml` → `get_quarterly_review_template()` tool
+- `standup_workflow.yml` → `get_standup_workflow_template()` tool (instruction-only)
 
 ## Template Writing Guidelines
 
@@ -145,7 +168,9 @@ The filename becomes the tool name. For example:
 - end with "Populate the template and return the completed markdown document"
 - **treat instructions as a workflow orchestration** - chain multiple MCP tool calls together
 
-### Template Field
+### Template Field (Optional)
+- **omit entirely** for instruction-only workflows (pure orchestration, no structured output)
+- **include** when you want structured markdown output with placeholders
 - always use `|` for multi-line strings to preserve formatting
 - use markdown formatting (headers, lists, bold, etc.)
 - placeholders use curly braces: `{descriptive name}`
@@ -204,19 +229,21 @@ src/template_mcp/
 
 - **no parameters**: tool functions take no arguments
 - **no state**: server is completely stateless
-- **pydantic validation**: template YAML files validated with Pydantic models, required fields enforced
+- **pydantic validation**: template YAML files validated with Pydantic models, `description` and `instructions` required, `template` optional
 - **no processing**: no server-side template rendering or substitution
 - **dynamic loading**: templates loaded at startup from filesystem, server exits if no templates found
 - **environment configuration**: single env var for template path
 - **pure YAML data**: templates contain only strings, no logic
 - **Docker-first**: designed for Docker deployment with volume mounts
+- **built-in utilities**: `get_current_date()` provides current datetime/timezone info
 
 ## Common Tasks
 
 ### Adding a New Template
 1. Create `.yml` file in templates directory
-2. Add `description`, `instructions`, `template` fields
-3. Restart Claude Desktop
+2. Add required fields: `description` and `instructions`
+3. Optionally add `template` field if structured output is needed
+4. Restart Claude Desktop
 
 ### Modifying an Existing Template
 1. Edit the YAML file

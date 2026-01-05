@@ -7,8 +7,10 @@ A dynamic MCP (Model Context Protocol) server for Claude Desktop that loads mark
 - **Zero-Code Template Management**: Add/edit templates without touching Python code
 - **Dynamic Discovery**: YAML files automatically loaded at startup
 - **Type-Safe Validation**: Pydantic models ensure template data integrity
+- **Flexible Templates**: Support instruction-only workflows or instruction + template combos
 - **Preserved Formatting**: Multi-line templates with exact whitespace preservation
 - **Agent Guidance**: Each template includes step-by-step instructions for Claude
+- **Built-in Utilities**: `get_current_date()` tool provides current datetime/timezone
 - **Docker-First**: Designed for Claude Desktop with Docker deployment
 
 ## Quick Start
@@ -94,7 +96,7 @@ Your templates are now available as MCP tools!
 
 ## YAML Template Format
 
-Each template file has three required fields (validated with Pydantic):
+Each template file requires two fields and optionally supports a third:
 
 ```yaml
 description: Brief description (becomes tool docstring)
@@ -103,26 +105,53 @@ instructions: |
   Multi-line step-by-step guide for Claude.
   Use the pipe (|) to preserve formatting.
 
-template: |
+template: |  # OPTIONAL - omit for instruction-only workflows
   # Markdown Template
 
   {use curly braces for placeholders}
   All whitespace is preserved exactly.
 ```
 
-**Note**: All three fields are required. If any field is missing or empty, the template will not load and an error will be logged.
+**Required fields**: `description` and `instructions`
+**Optional field**: `template` (omit for pure workflow orchestration)
+
+### Instruction-Only Example
+
+For workflows that don't need structured output:
+
+```yaml
+description: Orchestrate standup data collection from Linear and Slack
+
+instructions: |
+  Collect standup data by following these steps:
+
+  1. Use the Linear MCP to query issues updated in the last 7 days
+  2. Use the Slack MCP to fetch recent messages from #engineering
+  3. Summarize updates, blockers, and upcoming work
+  4. Return a concise summary in bullet points
+```
+
+No `template` field needed - Claude will just follow the instructions.
+
+## Built-in Utility Tools
+
+The server provides utility tools:
+
+- **`get_current_date()`**: Returns current datetime in ISO format, timezone name, and formatted string. Useful for templates that need date/time context.
 
 ## Adding More Templates
 
 **Zero code required**:
 
 1. Create a `.yml` or `.yaml` file in `~/.template-mcp/templates/`
-2. Add the three required fields: `description`, `instructions`, `template`
-3. Restart Claude Desktop
+2. Add required fields: `description` and `instructions`
+3. Optionally add `template` field if structured output is needed
+4. Restart Claude Desktop
 
 The filename becomes the tool name:
 - `weekly_update.yml` → `get_weekly_update_template()` tool
 - `meeting_notes.yml` → `get_meeting_notes_template()` tool
+- `standup_workflow.yml` → `get_standup_workflow_template()` tool
 
 ## How It Works
 
@@ -151,7 +180,9 @@ The `instructions` field turns templates into **guided workflows** that can orch
 - Be specific about data gathering and filtering
 - End with "Populate the template and return the completed markdown document"
 
-### template
+### template (optional)
+- Omit entirely for instruction-only workflows
+- Include when you want structured markdown output
 - Always use `|` for multi-line strings
 - Use markdown formatting
 - Use natural language placeholders: `{total revenue for quarter}` not `{rev_q1}`

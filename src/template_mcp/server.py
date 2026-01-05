@@ -33,6 +33,18 @@ def run():
     mcp = FastMCP('template MCP')
     logger.info("starting template MCP server")
 
+    # register get_current_date utility tool
+    @mcp.tool()
+    def get_current_date() -> Dict[str, str]:
+        """Get the current date, time, and timezone"""
+        now = datetime.now().astimezone()
+        return {
+            'datetime': now.isoformat(),
+            'timezone': now.tzname() or str(now.tzinfo),
+            'formatted': now.strftime('%Y-%m-%d %H:%M:%S %Z')
+        }
+    logger.info("registered tool: get_current_date")
+
     # load templates
     templates_path = os.environ.get('TEMPLATE_MCP_PATH', '/templates')
     templates = TemplateLoader(templates_path).load_templates()
